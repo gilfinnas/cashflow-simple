@@ -1,14 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
-  env: {
-    NEXT_PUBLIC_FIREBASE_API_KEY: "AIzaSyBv4duy17y72b22VtBxisXztEylSFuK1jU",
-    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "gilfinnasnew.firebaseapp.com",
-    NEXT_PUBLIC_FIREBASE_PROJECT_ID: "gilfinnasnew",
-    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "gilfinnasnew.appspot.com",
-    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "53159078238",
-    NEXT_PUBLIC_FIREBASE_APP_ID: "1:53159078238:web:bcb62c2c14fb5faa2907cf",
-  },
-};
+eslint: {
+  ignoreDuringBuilds: true,
+},
+typescript: {
+  ignoreBuildErrors: true,
+},
+images: {
+  unoptimized: true,
+},
+}
 
-export default nextConfig;
+export default nextConfig

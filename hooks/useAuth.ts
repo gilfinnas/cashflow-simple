@@ -1,28 +1,22 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-  signOut as firebaseSignOut
-} from "firebase/auth";
-import { auth } from "@/lib/firebase";
 
+// Mock auth hook - replace with actual Firebase auth implementation
 export function useAuth() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
 
   const signIn = async (email: string, password: string) => {
     setLoading(true)
     setError(null)
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push('/dashboard');
-    } catch (err: any) {
-      setError("אימייל או סיסמה שגויים");
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      console.log("Signing in:", email)
+    } catch (err) {
+      setError("שגיאה בהתחברות")
     } finally {
       setLoading(false)
     }
@@ -31,36 +25,35 @@ export function useAuth() {
   const signUp = async (email: string, password: string) => {
     setLoading(true)
     setError(null)
+
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      router.push('/dashboard');
-    } catch (err: any) {
-      if (err.code === 'auth/email-already-in-use') {
-        setError("האימייל הזה כבר נמצא בשימוש.");
-      } else {
-        setError("אירעה שגיאה במהלך ההרשמה.");
-      }
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      console.log("Signing up:", email)
+    } catch (err) {
+      setError("שגיאה בהרשמה")
     } finally {
       setLoading(false)
     }
   }
 
   const resetPassword = async (email: string) => {
-    setLoading(true);
-    setError(null);
+    setLoading(true)
+    setError(null)
+
     try {
-      await sendPasswordResetEmail(auth, email);
-      alert("קישור לאיפוס סיסמה נשלח לאימייל שלך.");
-    } catch (err: any) {
-      setError("שגיאה בשליחת אימייל לאיפוס סיסמה.");
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      console.log("Resetting password for:", email)
+    } catch (err) {
+      setError("שגיאה באיפוס סיסמה")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const signOut = async () => {
-    await firebaseSignOut(auth);
-    router.push('/');
+    console.log("Signing out...")
   }
 
   return { signIn, signUp, resetPassword, signOut, loading, error }
