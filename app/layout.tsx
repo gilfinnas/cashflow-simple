@@ -1,27 +1,32 @@
-import type React from "react"
-import type { Metadata } from "next"
-import { Rubik } from "next/font/google"
-import "./globals.css"
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { ThemeProvider } from "@/components/ui/theme-provider"; // <-- ייבוא מהנתיב הנכון
 
-const rubik = Rubik({
-  subsets: ["hebrew", "latin"],
-  weight: ["400", "500", "600", "700", "800"],
-})
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "תזרים מזומנים",
-  description: "מערכת לניהול תזרים מזומנים יומי",
-    generator: 'v0.dev'
-}
+  title: "Cashflow App",
+  description: "Manage your cashflow easily",
+};
 
 export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode
-}) {
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="he" dir="rtl">
-      <body className={`${rubik.className} bg-gray-100 text-gray-800`}>{children}</body>
+      <body className={inter.className}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
-  )
+  );
 }
