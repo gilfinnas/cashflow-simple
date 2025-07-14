@@ -2,15 +2,18 @@
 
 import { useState } from "react"
 
+// הוספנו כאן את cashflowData
 interface CategoryEditorModalProps {
   onClose: () => void
   userCategories: any
+  cashflowData: any // <-- זה התיקון!
 }
 
-export function CategoryEditorModal({ onClose, userCategories }: CategoryEditorModalProps) {
+export function CategoryEditorModal({ onClose, userCategories, cashflowData }: CategoryEditorModalProps) {
   const [categories, setCategories] = useState(userCategories)
 
   const handleSave = async () => {
+    // הערה: confirm() לא יעבוד בסביבת שרת, כדאי להחליף במודל אישור משלך
     const confirmed = confirm("האם אתה בטוח שברצונך לשמור את השינויים בקטגוריות?")
     if (!confirmed) return
 
