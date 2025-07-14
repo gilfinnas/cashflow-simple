@@ -2,6 +2,13 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  sendPasswordResetEmail,
+  signOut as firebaseSignOut
+} from "firebase/auth";
+import { auth } from "@/lib/firebase"; // ייבוא מהקובץ שיצרנו
 
 export function useAuth() {
   const [loading, setLoading] = useState(false)
@@ -11,27 +18,12 @@ export function useAuth() {
   const signIn = async (email: string, password: string) => {
     setLoading(true)
     setError(null)
-
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.message || "שגיאה בהתחברות")
-      }
-
-      // אם ההתחברות הצליחה, נעביר את המשתמש לדף הראשי
-      router.push('/dashboard') // שנה את '/dashboard' לדף שאליו אתה רוצה להעביר אחרי התחברות
-
+      await signInWithEmailAndPassword(auth, email, password);
+      router.push('/dashboard'); // העברה לדאשבורד אחרי התחברות
     } catch (err: any) {
-      setError(err.message)
+      setError("אימייל או סיסמה שגויים");
+      console.error(err);
     } finally {
       setLoading(false)
     }
@@ -40,51 +32,44 @@ export function useAuth() {
   const signUp = async (email: string, password: string) => {
     setLoading(true)
     setError(null)
-
     try {
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "שגיאה בהרשמה");
-      }
-      
-      // אחרי הרשמה מוצלחת, אפשר להתחבר או להעביר לדף אחר
-      await signIn(email, password);
-
+      await createUserWithEmailAndPassword(auth, email, password);
+      router.push('/dashboard'); // העברה לדאשבורד אחרי הרשמה
     } catch (err: any) {
-      setError(err.message)
+      if (err.code === 'auth/email-already-in-use') {
+        setError("האימייל הזה כבר נמצא בשימוש.");
+      } else {
+        setError("אירעה שגיאה במהלך ההרשמה.");
+      }
+      console.error(err);
     } finally {
       setLoading(false)
     }
   }
 
-  // השארתי את הפונקציות האחרות כסימולציה, תוכל לממש אותן באותו אופן
   const resetPassword = async (email: string) => {
     setLoading(true)
     setError(null)
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      alert("קישור לאיפוס סיסמה נשלח לאימייל שלך (סימולציה).")
-      console.log("Resetting password for:", email)
-    } catch (err) {
-      setError("שגיאה באיפוס סיסמה")
+      await sendPasswordResetEmail(auth, email);
+      alert("קישור לאיפוס סיסמה נשלח לאימייל שלך.");
+    } catch (err: any) {
+      setError("שגיאה בשליחת אימייל לאיפוס סיסמה.");
+      console.error(err);
     } finally {
       setLoading(false)
     }
   }
 
   const signOut = async () => {
-    console.log("Signing out...")
-    router.push('/') // העברה לדף הבית ביציאה
+    try {
+      await firebaseSignOut(auth);
+      router.push('/'); // חזרה לדף הבית אחרי יציאה
+    } catch (err) {
+      console.error("Error signing out: ", err);
+    }
   }
 
   return { signIn, signUp, resetPassword, signOut, loading, error }
 }
+
