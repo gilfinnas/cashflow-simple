@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState, useCallback } from "react"
+import { useCashflowCalculations } from "@/hooks/useCashflowCalculations"
 
 interface MainTableProps {
   cashflowData: any
@@ -10,21 +11,62 @@ interface MainTableProps {
 }
 
 export function MainTable({ cashflowData, userCategories, currentYear, currentMonthIndex }: MainTableProps) {
-  const getDaysInMonth = (year: number, month: number) => {
-    return new Date(year, month + 1, 0).getDate()
-  }
+  const [localData, setLocalData] = useState(cashflowData)
+  
+  const {
+    getDaysInMonth,
+    formatCurrency,
+    getMonthlyOpeningBalance,
+    getDailyBalance,
+    getRunningBalance,
+    getDailyVAT,
+  } = useCashflowCalculations(localData, userCategories, currentYear, currentMonthIndex)
 
   const daysInMonth = getDaysInMonth(currentYear, currentMonthIndex)
   const today = new Date()
   const isCurrentMonthView = today.getFullYear() === currentYear && today.getMonth() === currentMonthIndex
 
+  // Handle input changes
+  const handleInputChange = useCallback((catKey: string, dayIndex: number, value: string) => {
+    setLocalData((prev: any) => {
+      const newData = { ...prev }
+      if (!newData.years) newData.years = {}
+      if (!newData.years[currentYear]) newData.years[currentYear] = {}
+      if (!newData.years[currentYear][currentMonthIndex]) newData.years[currentYear][currentMonthIndex] = { categories: {}, customNames: {} }
+      if (!newData.years[currentYear][currentMonthIndex].categories[catKey]) {
+        newData.years[currentYear][currentMonthIndex].categories[catKey] = Array(daysInMonth).fill(0)
+      }
+      
+      const cleanValue = value.replace(/,/g, "")
+      const numValue = Number.parseFloat(cleanValue) || 0
+      newData.years[currentYear][currentMonthIndex].categories[catKey][dayIndex] = numValue
+      
+      return newData
+    })
+  }, [currentYear, currentMonthIndex, daysInMonth])
+
+  // Handle category name changes
+  const handleCategoryNameChange = useCallback((catKey: string, name: string) => {
+    setLocalData((prev: any) => {
+      const newData = { ...prev }
+      if (!newData.years) newData.years = {}
+      if (!newData.years[currentYear]) newData.years[currentYear] = {}
+      if (!newData.years[currentYear][currentMonthIndex]) newData.years[currentYear][currentMonthIndex] = { categories: {}, customNames: {} }
+      if (!newData.years[currentYear][currentMonthIndex].customNames) newData.years[currentYear][currentMonthIndex].customNames = {}
+      
+      newData.years[currentYear][currentMonthIndex].customNames[catKey] = name
+      
+      return newData
+    })
+  }, [currentYear, currentMonthIndex])
+
   const tableData = useMemo(() => {
-    if (!cashflowData?.years?.[currentYear]?.[currentMonthIndex] || !userCategories) {
+    if (!localData?.years?.[currentYear]?.[currentMonthIndex] || !userCategories) {
       return { headers: [], rows: [] }
     }
 
-    const monthData = cashflowData.years[currentYear][currentMonthIndex]
-    const businessType = cashflowData.vatSettings?.businessType
+    const monthData = localData.years[currentYear][currentMonthIndex]
+    const businessType = localData.vatSettings?.businessType
 
     // Generate headers
     const headers = ["קטגוריה"]
@@ -38,7 +80,7 @@ export function MainTable({ cashflowData, userCategories, currentYear, currentMo
 
     Object.entries(userCategories).forEach(([groupName, groupDetails]: [string, any]) => {
       // Skip certain categories based on business type
-      if (groupName === "הכנסות פטורות ממע'מ" && !cashflowData.vatSettings?.hasExemptIncome) return
+      if (groupName === "הכנסות פטורות ממע'מ" && !localData.vatSettings?.hasExemptIncome) return
       if (groupDetails.vatRelated && businessType === "exempt") return
 
       // Add group header row
@@ -48,6 +90,8 @@ export function MainTable({ cashflowData, userCategories, currentYear, currentMo
         color: groupDetails.color,
         colspan: daysInMonth + 2,
       })
+
+      let groupSum = 0
 
       // Add category rows
       Object.entries(groupDetails.items).forEach(([catKey, catDetails]: [string, any]) => {
@@ -59,25 +103,48 @@ export function MainTable({ cashflowData, userCategories, currentYear, currentMo
         const displayName = monthData.customNames?.[catKey] || catDetails.name || catDetails.placeholder || ""
         const isCalculated = catDetails.type === "expense_calculated"
         const dailyData = monthData.categories[catKey] || Array(daysInMonth).fill(0)
-        const monthlySum = dailyData.reduce((acc: number, val: any) => acc + (Number.parseFloat(val) || 0), 0)
+        
+        // Calculate monthly sum
+        const monthlySum = dailyData.reduce((acc: number, val: any) => {
+          const numVal = Number.parseFloat(String(val || "0").replace(/,/g, "")) || 0
+          return acc + numVal
+        }, 0)
 
-        rows.push({
-          type: "category",
-          catKey,
-          displayName,
-          isCustom,
-          isCalculated,
-          dailyData,
-          monthlySum,
-          placeholderText: catDetails.placeholder || "הקלד שם...",
-        })
+        // Add to group sum
+        groupSum += monthlySum
+
+        // For VAT calculations, use the calculated VAT values
+        if (catDetails.type === "expense_calculated" && catKey === "vat_payment") {
+          const vatDailyData = Array(daysInMonth).fill(0).map((_, i) => getDailyVAT(i))
+          const vatMonthlySum = vatDailyData.reduce((acc: number, val: number) => acc + val, 0)
+          
+          rows.push({
+            type: "category",
+            catKey,
+            displayName,
+            isCustom,
+            isCalculated,
+            dailyData: vatDailyData,
+            monthlySum: vatMonthlySum,
+            placeholderText: catDetails.placeholder || "הקלד שם...",
+          })
+          
+          groupSum = groupSum - monthlySum + vatMonthlySum
+        } else {
+          rows.push({
+            type: "category",
+            catKey,
+            displayName,
+            isCustom,
+            isCalculated,
+            dailyData,
+            monthlySum,
+            placeholderText: catDetails.placeholder || "הקלד שם...",
+          })
+        }
       })
 
       // Add group summary row
-      const groupSum = rows
-        .filter((row) => row.type === "category" && row.catKey)
-        .reduce((sum, row) => sum + row.monthlySum, 0)
-
       rows.push({
         type: "group-summary",
         groupName,
@@ -86,19 +153,10 @@ export function MainTable({ cashflowData, userCategories, currentYear, currentMo
     })
 
     return { headers, rows }
-  }, [cashflowData, userCategories, currentYear, currentMonthIndex, daysInMonth])
+  }, [localData, userCategories, currentYear, currentMonthIndex, daysInMonth, getDailyVAT])
 
   const formatWithCommas = (value: number) => {
     return new Intl.NumberFormat("en-US").format(value)
-  }
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("he-IL", {
-      style: "currency",
-      currency: "ILS",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)
   }
 
   return (
@@ -157,7 +215,8 @@ export function MainTable({ cashflowData, userCategories, currentYear, currentMo
                         type="text"
                         className="category-name-input w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-right"
                         placeholder={row.placeholderText}
-                        defaultValue={row.displayName}
+                        value={row.displayName}
+                        onChange={(e) => handleCategoryNameChange(row.catKey, e.target.value)}
                       />
                     ) : (
                       <div className="category-cell-static px-3 py-2 border-2 border-gray-200 rounded-lg bg-gray-50">
@@ -167,15 +226,17 @@ export function MainTable({ cashflowData, userCategories, currentYear, currentMo
                   </td>
 
                   {row.dailyData.map((value: any, dayIndex: number) => {
-                    const formattedValue = value !== 0 ? formatWithCommas(value) : ""
+                    const numValue = Number.parseFloat(String(value || "0").replace(/,/g, "")) || 0
+                    const formattedValue = numValue !== 0 ? formatWithCommas(numValue) : ""
                     return (
                       <td key={dayIndex} className="p-1">
                         <input
                           type="text"
                           className="table-cell-input w-[140px] px-3 py-2 border-2 border-gray-200 rounded-lg text-center font-bold"
-                          defaultValue={formattedValue}
+                          value={formattedValue}
                           placeholder="0"
                           disabled={row.isCalculated}
+                          onChange={(e) => handleInputChange(row.catKey, dayIndex, e.target.value)}
                         />
                       </td>
                     )
@@ -196,14 +257,14 @@ export function MainTable({ cashflowData, userCategories, currentYear, currentMo
               יתרת פתיחה לחודש
             </td>
             <td className="font-bold px-4 py-2" colSpan={daysInMonth + 1}>
-              {formatCurrency(0)} {/* This should be calculated */}
+              {formatCurrency(getMonthlyOpeningBalance())}
             </td>
           </tr>
           <tr className="border-b balance-row">
             <td className="category-cell px-4 py-2 text-right sticky right-0 z-20 bg-gray-100">מאזן יומי</td>
             {Array.from({ length: daysInMonth }, (_, i) => (
               <td key={i} className="font-bold px-4 py-2 daily-balance">
-                {formatCurrency(0)} {/* This should be calculated */}
+                {formatCurrency(getDailyBalance(i))}
               </td>
             ))}
             <td className="font-bold px-4 py-2"></td>
@@ -212,7 +273,7 @@ export function MainTable({ cashflowData, userCategories, currentYear, currentMo
             <td className="category-cell px-4 py-2 text-right sticky right-0 z-20 bg-gray-100">מאזן יומי מתגלגל</td>
             {Array.from({ length: daysInMonth }, (_, i) => (
               <td key={i} className="font-bold px-4 py-2 running-balance">
-                {formatCurrency(0)} {/* This should be calculated */}
+                {formatCurrency(getRunningBalance(i))}
               </td>
             ))}
             <td className="font-bold px-4 py-2"></td>
